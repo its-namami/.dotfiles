@@ -1,0 +1,28 @@
+.DS_Store
+*~
+#*#
+.#*
+# --- VS Code ---
+.vscode/
+*.code-workspace
+
+# --- IntelliJ / JetBrains ---
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# --- Ruby / LSP Stuff ---
+.solargraph
+.ruby-lsp/
+.bundle/
+vendor/bundle/
+.yardoc/
+_yardoc/
+doc/
+
+# --- Neovim (Nvim-Kickstart / Shada) ---
+# Neovim stores 'Shared Data' (marks, history) in shada files
+*.shada
+*.shada.tmp.x

@@ -58,7 +58,7 @@
       ring-bell-function 'ignore
       frame-resize-pixelwise t)
 
-(menu-bar-mode -1)
+;; (menu-bar-mode -1)
 
 ;; consolidate frame appearance
 (let ((my-frame-settings '((undecorated . t)
