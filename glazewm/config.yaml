@@ -155,13 +155,13 @@ keybindings:
 
   # Move focused window in a given direction.
   - commands: ['move --direction left']
-    bindings: ['rwin+control+b']
+    bindings: ['rwin+shift+b']
   - commands: ['move --direction right']
-    bindings: ['rwin+control+f']
+    bindings: ['rwin+shift+f']
   - commands: ['move --direction up']
-    bindings: ['rwin+control+p']
+    bindings: ['rwin+shift+p']
   - commands: ['move --direction down']
-    bindings: ['rwin+control+n']
+    bindings: ['rwin+shift+n']
 
   # Resize focused window by a percentage or pixel amount.
   - commands: ['resize --width -2%']
@@ -251,13 +251,13 @@ keybindings:
   # Move the focused window's parent workspace to a monitor in a given
   # direction.
   - commands: ['move-workspace --direction left']
-    bindings: ['rwin+shift+b']
+    bindings: ['rwin+alt+shift+b']
   - commands: ['move-workspace --direction right']
-    bindings: ['rwin+shift+f']
+    bindings: ['rwin+alt+shift+f']
   - commands: ['move-workspace --direction up']
-    bindings: ['rwin+shift+p']
+    bindings: ['rwin+alt+shift+p']
   - commands: ['move-workspace --direction down']
-    bindings: ['rwin+shift+n']
+    bindings: ['rwin+alt+shift+n']
 
   # Move focused window to a workspace defined in `workspaces` config.
   - commands: ['move --workspace 1', 'focus --workspace 1']
