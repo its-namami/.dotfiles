@@ -50,8 +50,8 @@
 ;; xclip - yank to system clipboard
 (when (or (string= system-type "gnu/linux")
 	  (string= system-type "darwin"))
-  (unless (package-installed-p 'xclip-mode)
-    (package-install 'xclip-mode)))
+  (unless (package-installed-p 'xclip)
+    (package-install 'xclip)))
 
 ;; rspec - testing without using the shell
 (unless (package-installed-p 'rspec-mode)
