@@ -8,10 +8,16 @@
 (unless package-archive-contents
   (package-refresh-contents))
 
+;; everforest - superior theme
+(unless (package-installed-p 'everforest-emacs)
+  (package-vc-install "https://github.com/theorytoe/everforest-emacs"))
+(load-theme 'everforest-hard-dark t)
+
 ;; Check if we are running EXWM
 (when (and (string= system-type "gnu/linux")
            (display-graphic-p)
-           (not (getenv "XDG_CURRENT_DESKTOP")))
+           (not (getenv "XDG_CURRENT_DESKTOP"))
+	   (not (getenv "WSL_DISTRO_NAME")))
   (load-file (expand-file-name "exwm.el" "~/.config/emacs/")))
 
 ;; no-litter - helps keeping ~/.config/emacs clean
@@ -33,29 +39,29 @@
   (unless (package-installed-p 'wakatime-mode)
     (package-install 'wakatime-mode))
   
-  (if (string= system-type "gnu/linux")
+  (if (or (string= system-type "gnu/linux")
+	  (string= system-type "darwin"))
       (setq wakatime-cli-path "wakatime-cli")
-    (if (string= system-type "darwin")
-        (setq wakatime-cli-path "wakatime-cli")
-      (if (string= system-type "windows-nt")
-          (setq wakatime-cli-path (concat (expand-file-name "~") "/.wakatime/wakatime-windows-cli-amd64.exe"))))))
 
-(global-wakatime-mode)
+      (if (string= system-type "windows-nt")
+          (setq wakatime-cli-path (concat (expand-file-name "~") "/.wakatime/wakatime-windows-cli-amd64.exe"))))
+  (global-wakatime-mode))
+
+;; xclip - yank to system clipboard
+(when (or (string= system-type "gnu/linux")
+	  (string= system-type "darwin"))
+  (unless (package-installed-p 'xclip-mode)
+    (package-install 'xclip-mode)))
+
+;; rspec - testing without using the shell
+(unless (package-installed-p 'rspec-mode)
+  (package-install 'rspec-mode))
 
 ;; avy - precise spatial jump
 (unless (package-installed-p 'avy)
   (package-install 'avy))
 (global-set-key (kbd "M-g f") 'avy-goto-line)
 (global-set-key (kbd "C-;") 'avy-goto-char-timer)
-
-;; everforest - superior theme
-(unless (package-installed-p 'everforest-emacs)
-  (package-vc-install "https://github.com/theorytoe/everforest-emacs"))
-(load-theme 'everforest-hard-dark t)
-
-;; rspec - testing without using the shell
-(unless (package-installed-p 'rspec-mode)
-  (package-install 'rspec-mode))
 
 ;; consult-project-extra - fast project file fuzzy-searching
 (unless (package-installed-p 'consult-project-extra)
