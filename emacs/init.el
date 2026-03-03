@@ -1,14 +1,18 @@
-;;; -*- lexical-binding: t; -*-
-
 (require 'package)
 
-;; melpa - repository of packages
+;; melpa - package manager
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (package-initialize)
 
-;; when first time (new machine), sync with melpa archives
+;; sync with melpa archives when booting emacs for the first time
 (unless package-archive-contents
   (package-refresh-contents))
+
+;; Check if we are running EXWM
+(when (and (string= system-type "gnu/linux")
+           (display-graphic-p)
+           (not (getenv "XDG_CURRENT_DESKTOP")))
+  (load-file (expand-file-name "exwm.el" "~/.config/emacs/")))
 
 ;; no-litter - helps keeping ~/.config/emacs clean
 (unless (package-installed-p 'no-littering)
@@ -18,33 +22,25 @@
 (when (file-exists-p custom-file)
   (load custom-file))
 
-;; magit - git client
+;; magit - git porcelain
 (unless (package-installed-p 'magit)
   (package-install 'magit))
 
-;; Add lisp folder to path safely
-(add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
-
-;; pdftotext - CLI pdf reading
-(unless (package-installed-p 'pdftotext)
-  (package-vc-install "https://github.com/tecosaur/pdftotext.el"))
-(require 'pdftotext nil 'noerror)
-
 ;; wakatime - time tracking
-(unless (package-installed-p 'wakatime-mode)
-  (package-install 'wakatime-mode))
-(setq wakatime-cli-path "wakatime-cli") ; Set variable FIRST
+(when (or (string= system-type "gnu/linux")
+          (string= system-type "darwin")
+          (string= system-type "windows-nt"))
+  (unless (package-installed-p 'wakatime-mode)
+    (package-install 'wakatime-mode))
+  
+  (if (string= system-type "gnu/linux")
+      (setq wakatime-cli-path "wakatime-cli")
+    (if (string= system-type "darwin")
+        (setq wakatime-cli-path "wakatime-cli")
+      (if (string= system-type "windows-nt")
+          (setq wakatime-cli-path (concat (expand-file-name "~") "/.wakatime/wakatime-windows-cli-amd64.exe"))))))
+
 (global-wakatime-mode)
-
-;; elcord - rich presence
-(unless (package-installed-p 'elcord)
-  (package-install 'elcord))
-(elcord-mode 1)
-
-;; expand region - semantic expansion
-(unless (package-installed-p 'expand-region)
-  (package-install 'expand-region))
-(global-set-key (kbd "C-.") 'er/expand-region)
 
 ;; avy - precise spatial jump
 (unless (package-installed-p 'avy)
@@ -52,52 +48,26 @@
 (global-set-key (kbd "M-g f") 'avy-goto-line)
 (global-set-key (kbd "C-;") 'avy-goto-char-timer)
 
-;; global UI setup
-(setq inhibit-startup-message t
-      initial-scratch-message ""
-      ring-bell-function 'ignore
-      frame-resize-pixelwise t)
+;; everforest - superior theme
+(unless (package-installed-p 'everforest-emacs)
+  (package-vc-install "https://github.com/theorytoe/everforest-emacs"))
+(load-theme 'everforest-hard-dark t)
 
+;; rspec - testing without using the shell
+(unless (package-installed-p 'rspec-mode)
+  (package-install 'rspec-mode))
+
+;; consult-project-extra - fast project file fuzzy-searching
+(unless (package-installed-p 'consult-project-extra)
+  (package-install 'consult-project-extra))
+
+;; having this in my config makes me feel pro
 (menu-bar-mode -1)
+(tool-bar-mode -1)
+(scroll-bar-mode -1)
+(setq initial-scratch-message "")
+(global-set-key (kbd "M-o") 'other-window)
 
-;; consolidate frame appearance
-(let ((my-frame-settings '((undecorated . t)
-                           (internal-border-width . 8)
-                           (fullscreen . maximized))))
-  (setq default-frame-alist my-frame-settings
-        initial-frame-alist my-frame-settings))
-
-;; GUI specifics (font, theme and UI)
-(if (display-graphic-p)
-    (progn
-      (scroll-bar-mode -1)
-      (tool-bar-mode -1)
-      (tooltip-mode -1)
-      (set-fringe-mode 10)
-
-      ;; load everforest theme
-      (unless (package-installed-p 'everforest-emacs)
-	(package-vc-install "https://github.com/theorytoe/everforest-emacs"))
-      (load-theme 'everforest-hard-dark t)
-
-      ;; set up font
-      (set-face-attribute 'default nil
-                          :family "Hack Nerd Font"
-                          :height 240)))
-
-(defun my-config ()
-  "Quickly jump to emacs init.el"
-  (interactive)
-  (find-file user-init-file))
-
-;; pretty markdown
-(add-hook 'markdown-mode-hook
-          (lambda ()
-            (visual-line-mode 1)
-            (markdown-toggle-markup-hiding 1)
-	    (custom-set-faces
-	     '(markdown-header-face ((t (:inherit font-lock-function-name-face :weight bold :family "variable-pitch"))))
-	     '(markdown-header-face-1 ((t (:inherit markdown-header-face :height 1.8))))
-	     '(markdown-header-face-2 ((t (:inherit markdown-header-face :height 1.4))))
-	     '(markdown-header-face-3 ((t (:inherit markdown-header-face :height 1.2)))))
-	    (markdown-toggle-markup-hiding)))
+;; QOL utils
+(fido-vertical-mode 1)
+(winner-mode 1)
