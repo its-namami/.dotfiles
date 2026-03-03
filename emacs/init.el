@@ -57,6 +57,26 @@
 (unless (package-installed-p 'rspec-mode)
   (package-install 'rspec-mode))
 
+;; twig mode
+(unless (package-installed-p 'twig-mode)
+  (package-install 'twig-mode))
+
+;; php mode
+(unless (package-installed-p 'php-mode)
+  (package-install 'php-mode))
+
+;; sass mode
+(unless (package-installed-p 'sass-mode)
+  (package-install 'sass-mode))
+
+;; scss mode
+(unless (package-installed-p 'scss-mode)
+  (package-install 'scss-mode))
+
+;; typescript mode
+(unless (package-installed-p 'typescript-mode)
+  (package-install 'typescript-mode))
+
 ;; avy - precise spatial jump
 (unless (package-installed-p 'avy)
   (package-install 'avy))
