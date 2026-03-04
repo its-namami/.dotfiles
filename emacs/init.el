@@ -1,3 +1,10 @@
+;;; -*- lexical-binding: t; -*-
+
+;; WINDOWS:
+;; Coulnd't symbol link the config files from this repo to emacs config
+;; thus, on windows, use this:
+;;(load (concat (expand-file-name "~") "/repos/.dotfiles/emacs/init.el"))
+
 (require 'package)
 
 ;; melpa - package manager
@@ -9,9 +16,10 @@
   (package-refresh-contents))
 
 ;; everforest - superior theme
-(unless (package-installed-p 'everforest-emacs)
-  (package-vc-install "https://github.com/theorytoe/everforest-emacs"))
-(load-theme 'everforest-hard-dark t)
+(when (display-graphic-p)
+    (unless (package-installed-p 'everforest-emacs)
+      (package-vc-install "https://github.com/theorytoe/everforest-emacs"))
+  (load-theme 'everforest-hard-dark t))
 
 ;; Check if we are running EXWM
 (when (and (string= system-type "gnu/linux")
@@ -44,7 +52,7 @@
       (setq wakatime-cli-path "wakatime-cli")
 
       (if (string= system-type "windows-nt")
-          (setq wakatime-cli-path (concat (expand-file-name "~") "/.wakatime/wakatime-windows-cli-amd64.exe"))))
+          (setq wakatime-cli-path (concat (expand-file-name "~") "/.wakatime/wakatime-cli-windows-amd64.exe"))))
   (global-wakatime-mode))
 
 ;; xclip - yank to system clipboard

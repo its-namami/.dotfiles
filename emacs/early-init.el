@@ -1,5 +1,10 @@
 ;;; -*- lexical-binding: t; -*-
 
+;; WINDOWS:
+;; Coulnd't symbol link the config files from this repo to emacs config
+;; thus, on windows, use this:
+;;(load (concat (expand-file-name "~") "/repos/.dotfiles/emacs/early-init.el"))
+
 ;; set home directory
 (setq user-emacs-directory (expand-file-name "~/.config/emacs/"))
 
