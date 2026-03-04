@@ -18,10 +18,12 @@ config.use_resize_increments = false
 config.hide_tab_bar_if_only_one_tab = true
 config.window_decorations = "NONE"
 
--- If windows (amd64 is the only one I have)
 if wezterm.target_triple == 'x86_64-pc-windows-msvc' then
-	-- Set default domain to wsl archlinux
-	config.default_domain = "WSL:archlinux"
+    config.default_domain = "WSL:archlinux"
+end
+
+if wezterm.target_triple == 'aarch64-apple-darwin' then
+    config.window_decorations = "NONE | MACOS_FORCE_DISABLE_SHADOW | MACOS_FORCE_SQUARE_CORNERS"
 end
 
 -- Finally, return the configuration to wezterm:
