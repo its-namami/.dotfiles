@@ -1,0 +1,7 @@
+# copy this to ~/.config/git/ and rename copied file to config
+
+[include]
+    path = ~/repos/.dotfiles/git/config
+
+[core]
+    excludesFile = ~/repos/.dotfiles/git/ignore

@@ -1,0 +1,11 @@
+[user]
+	name = its-namami
+	email = 164639260+its-namami@users.noreply.github.com
+[init]
+	defaultBranch = main
+[pull]
+	rebase = false
+[core]
+	editor = "emacs"
+[includeIf "gitdir:~/repos/work/"]
+    path = ~/.config/git/config-work
