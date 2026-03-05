@@ -99,7 +99,10 @@
 (menu-bar-mode -1)
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
-(setq initial-scratch-message "")
+(setq inhibit-startup-screen t)
+(setq initial-scratch-message ";; Do you hear it? The music... starts!")
+
+;; keybindings
 (global-set-key (kbd "M-o") 'other-window)
 
 ;; QOL utils
