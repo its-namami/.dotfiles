@@ -19,3 +19,5 @@
 (setq package-enable-at-startup nil)
 
 (setq custom-file (expand-file-name "no-littering-customizations.el" user-emacs-directory))
+
+(setopt frame-inhibit-implied-resize t)
