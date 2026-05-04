@@ -17,5 +17,7 @@ if test -f /proc/version; and grep -qi microsoft /proc/version
     set -Ux WAYLAND_DISPLAY wayland-0
     set -Ux XDG_RUNTIME_DIR /mnt/wslg/runtime-dir
     set -Ux PULSE_SERVER /mnt/wslg/PulseServer
+
+    echo "WSL vars set"
 end
 
