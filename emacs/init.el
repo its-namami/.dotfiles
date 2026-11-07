@@ -94,6 +94,106 @@
 (use-package consult-project-extra
   :ensure t)
 
+;; consult - fast project search and navigation
+(use-package consult
+  :ensure t
+  :bind (("C-c p f" . consult-project-extra-find)
+         ("C-c p g" . consult-ripgrep)
+         ("C-c p b" . its/project-switch-buffer)
+         ("C-c p i" . consult-imenu)
+         ("M-g g" . consult-goto-line)))
+(global-set-key (kbd "C-c b") #'consult-buffer)
+(global-set-key (kbd "C-c p p") #'project-switch-project)
+
+(defun its/project-switch-buffer ()
+  "Switch only between live file buffers belonging to the current project."
+  (interactive)
+  (let* ((project (project-current t))
+         (root (file-name-as-directory (project-root project)))
+         (buffers
+          (seq-filter
+           (lambda (buffer)
+             (with-current-buffer buffer
+               (when-let* ((directory (or (buffer-file-name buffer)
+                                          (and (derived-mode-p 'vterm-mode)
+                                               default-directory))))
+                 (file-in-directory-p directory root))))
+           (buffer-list))))
+    (if buffers
+        (switch-to-buffer
+         (completing-read "Project buffer: " (mapcar #'buffer-name buffers)
+                          nil t))
+      (user-error "No file buffers are open for this project"))))
+
+;; Built-in in-buffer completion (Emacs 30+)
+(when (fboundp 'global-completion-preview-mode)
+  (global-completion-preview-mode 1))
+
+;; vterm - terminal emulator for long-running development processes
+(use-package vterm
+  :ensure t
+  :commands vterm
+  :bind (("C-c t" . vterm)))
+
+;; markdown-mode - readable Markdown editing and tables
+(use-package markdown-mode
+  :ensure t
+  :mode ("\\.md\\'" . markdown-mode)
+  :hook (markdown-mode . visual-line-mode))
+
+;; eglot - language-server support for exact definitions, references,
+;; completion, diagnostics, and documentation
+(use-package eglot
+  :ensure nil
+  :hook ((ruby-mode ruby-ts-mode) . its/eglot-ensure-if-server)
+  :hook ((js-mode js-ts-mode
+          typescript-mode
+          html-mode mhtml-mode
+          css-mode scss-mode) . its/eglot-ensure-if-server)
+  :bind (("M-." . xref-find-definitions)
+         ("M-," . xref-go-back)
+         ("C-c x r" . xref-find-references)
+         ("C-c x d" . xref-find-definitions)
+         ("C-c x a" . eglot-code-actions)
+         ("C-c x h" . eldoc))
+  :config
+  (add-to-list 'eglot-server-programs
+               '((ruby-mode ruby-ts-mode) . ("ruby-lsp")))
+  (add-to-list 'eglot-server-programs
+               '((js-mode js-ts-mode typescript-mode)
+                 . ("typescript-language-server" "--stdio")))
+  (add-to-list 'eglot-server-programs
+               '((html-mode mhtml-mode) . ("vscode-html-language-server" "--stdio")))
+  (add-to-list 'eglot-server-programs
+               '((css-mode scss-mode) . ("vscode-css-language-server" "--stdio"))))
+
+(with-eval-after-load 'eglot
+  (put 'eglot-flymake-backend 'flymake-always-safe t))
+
+(defun its/eglot-ensure-if-server ()
+  "Start Eglot only when a configured language server is installed."
+  (when (seq-some #'executable-find
+                  '("solargraph" "ruby-lsp"
+                    "typescript-language-server"
+                    "vscode-html-language-server"
+                    "vscode-css-language-server"))
+    (eglot-ensure)))
+
+;; flymake - show language-server diagnostics in the buffer
+(use-package flymake
+  :ensure nil
+  :bind (("C-c x n" . flymake-goto-next-error)
+         ("C-c x p" . flymake-goto-prev-error)
+         ("C-c x l" . flymake-show-buffer-diagnostics)))
+
+;; rubocop - on-demand Ruby style checks and autocorrection
+(use-package rubocop
+  :ensure t
+  :commands (rubocop-check-current-file
+             rubocop-autocorrect-current-file)
+  :bind (("C-c r c" . rubocop-check-current-file)
+         ("C-c r a" . rubocop-autocorrect-current-file)))
+
 ;; inf-ruby - ruby REPL
 (use-package inf-ruby
   :ensure t
@@ -134,6 +234,9 @@
 (setq inhibit-startup-screen t)
 (add-to-list 'default-frame-alist '(undecorated . t))
 
+;; indentation defaults: 2 spaces, no tabs
+(setq-default tab-width 2)
+(setq-default indent-tabs-mode nil)
 
 ;; keybindings
 (global-set-key (kbd "M-o") 'other-window)
