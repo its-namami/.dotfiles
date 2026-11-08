@@ -47,6 +47,7 @@
 ;; magit - git porcelain
 (use-package magit
   :ensure t)
+(add-hook 'git-commit-mode-hook #'flyspell-mode)
 
 ;; wakatime - time tracking
 (use-package wakatime-mode
