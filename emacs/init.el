@@ -64,6 +64,8 @@
 (when (memq system-type '(gnu/linux darwin))
   (use-package xclip
     :ensure t))
+(setq selection-coding-system 'utf-8-unix
+      x-select-request-type 'UTF8_STRING)
 
 ;; rspec - testing without using the shell
 (use-package rspec-mode
@@ -104,7 +106,16 @@
          ("C-c p i" . consult-imenu)
          ("M-g g" . consult-goto-line)))
 (global-set-key (kbd "C-c b") #'consult-buffer)
-(global-set-key (kbd "C-c p p") #'project-switch-project)
+(global-set-key (kbd "C-c p p") #'its/project-switch-repository)
+
+(defun its/project-switch-repository ()
+  "Discover Git projects under ~/repos, then choose one."
+  (interactive)
+  (let ((repos (expand-file-name "~/repos")))
+    (unless (file-directory-p repos)
+      (user-error "Repository directory does not exist: %s" repos))
+    (project-remember-projects-under repos t)
+    (call-interactively #'project-switch-project)))
 
 (defun its/project-switch-buffer ()
   "Switch only between live file buffers belonging to the current project."
@@ -139,8 +150,46 @@
 ;; markdown-mode - readable Markdown editing and tables
 (use-package markdown-mode
   :ensure t
+  :custom
+  (markdown-command "cmark")
   :mode ("\\.md\\'" . markdown-mode)
-  :hook (markdown-mode . visual-line-mode))
+  :hook (markdown-mode . visual-line-mode)
+  :bind (:map markdown-mode-map
+              ("C-c m p" . markdown-preview)
+              ("C-c m l" . markdown-live-preview-mode)
+              ("C-c m e" . markdown-export-and-preview)
+              ("C-c m g" . its/markdown-grip-preview)))
+
+(defvar its/markdown-grip-process nil)
+
+(defun its/markdown-grip-preview ()
+  "Open the current Markdown file in a GitHub-style Grip preview."
+  (interactive)
+  (unless buffer-file-name
+    (user-error "Current buffer is not visiting a file"))
+  (unless (executable-find "grip")
+    (user-error "Grip is not installed; run: python3 -m pip install --user grip"))
+  (when (process-live-p its/markdown-grip-process)
+    (delete-process its/markdown-grip-process))
+  (let ((file buffer-file-name)
+        (directory (file-name-directory buffer-file-name)))
+    (setq its/markdown-grip-process
+          (start-process "markdown-grip" "*markdown-grip*" "grip"
+                         file "127.0.0.1:6419"))
+    (run-at-time
+     1 nil
+     (lambda (directory)
+       (let ((default-directory directory))
+         (browse-url "http://localhost:6419")))
+     directory)
+    (message "Starting Grip preview for %s" (file-name-nondirectory file))))
+
+;; emmet - HTML/CSS abbreviation expansion
+(use-package emmet-mode
+  :ensure t
+  :hook ((html-mode mhtml-mode css-mode scss-mode) . emmet-mode)
+  :bind (:map emmet-mode-keymap
+              ("C-c e" . emmet-expand-line)))
 
 ;; eglot - language-server support for exact definitions, references,
 ;; completion, diagnostics, and documentation
@@ -156,7 +205,9 @@
          ("C-c x r" . xref-find-references)
          ("C-c x d" . xref-find-definitions)
          ("C-c x a" . eglot-code-actions)
-         ("C-c x h" . eldoc))
+         ("C-c x h" . eldoc)
+         ("C-c f b" . eglot-format-buffer)
+         ("C-c f r" . eglot-format))
   :config
   (add-to-list 'eglot-server-programs
                '((ruby-mode ruby-ts-mode) . ("ruby-lsp")))
@@ -241,6 +292,41 @@
 
 ;; keybindings
 (global-set-key (kbd "M-o") 'other-window)
+(global-set-key (kbd "C-c o") #'browse-url-of-file)
+(global-set-key (kbd "C-c j t") #'its/javascript-test-exercise)
+
+(defun its/javascript-test-exercise ()
+  "Run the Jest spec matching the current JavaScript exercise."
+  (interactive)
+  (unless (and buffer-file-name
+               (string-match-p "\\.js\\'" buffer-file-name))
+    (user-error "Current buffer is not a JavaScript file"))
+  (let* ((file (file-name-nondirectory buffer-file-name))
+         (spec (if (string-suffix-p ".spec.js" file)
+                   file
+                 (concat (file-name-sans-extension file) ".spec.js")))
+         (root (or (locate-dominating-file buffer-file-name "package.json")
+                   (user-error "No package.json found for this exercise")))
+         (default-directory root))
+    (compile (format "npm test -- %s" (shell-quote-argument spec)))))
+
+(defun its/two-space-indentation ()
+  "Use two spaces and never literal tabs in the current buffer."
+  (setq-local tab-width 2)
+  (setq-local standard-indent 2)
+  (setq-local indent-tabs-mode nil))
+
+(dolist (hook '(ruby-mode-hook ruby-ts-mode-hook
+                js-mode-hook js-ts-mode-hook typescript-mode-hook
+                html-mode-hook mhtml-mode-hook
+                css-mode-hook scss-mode-hook))
+  (add-hook hook #'its/two-space-indentation))
+(setq-default css-indent-offset 2
+              js-indent-level 2
+              typescript-indent-level 2
+              js2-basic-offset 2
+              sgml-basic-offset 2
+              ruby-indent-level 2)
 
 ;; QOL things
 (fido-vertical-mode 1)
