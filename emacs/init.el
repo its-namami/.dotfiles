@@ -191,60 +191,243 @@
   :bind (:map emmet-mode-keymap
               ("C-c e" . emmet-expand-line)))
 
-;; eglot - language-server support for exact definitions, references,
-;; completion, diagnostics, and documentation
+;; Development tools: Eglot -> Flymake underlines + ElDoc messages.
+;; See emacs-development-setup.md for installation and troubleshooting.
+;; No separate Flycheck/RuboCop Emacs package is needed.
+(require 'cl-lib)
+(require 'subr-x)
+
+;; GUI/daemon Emacs may not inherit the PATH used by npm and Ruby.
+;; Native Windows inherits PATH from Windows; do not invoke a Unix shell.
+(use-package exec-path-from-shell
+  :ensure t
+  :if (and (memq system-type '(gnu/linux darwin))
+           (or (display-graphic-p) (daemonp)))
+  :config
+  (dolist (variable '("GEM_HOME" "GEM_PATH"))
+    (add-to-list 'exec-path-from-shell-variables variable))
+  (exec-path-from-shell-initialize))
+
+(defgroup its-development nil
+  "Small, native development-tool customizations."
+  :group 'tools)
+
+(defcustom its/typescript-tsserver-path nil
+  "Optional absolute path to TypeScript's lib/tsserver.js.
+Normally leave nil: use the workspace TypeScript, with global npm as
+a fallback.  Set this only to explicitly override that selection."
+  :type '(choice (const :tag "Automatic" nil) file)
+  :group 'its-development)
+
+(defun its/npm-global-tsserver ()
+  "Find a usable global npm TypeScript entry point, or return nil.
+Run npm directly, without shell interpolation.  Do not probe local
+tools when visiting a remote directory."
+  (unless (file-remote-p default-directory)
+    (when-let* ((npm (executable-find "npm")))
+      (condition-case nil
+          (with-temp-buffer
+            (when (eq 0 (process-file npm nil (list t nil) nil "root" "--global"))
+              (let* ((root (string-trim (buffer-string)))
+                     (path (expand-file-name "typescript/lib/tsserver.js" root)))
+                (when (and (file-name-absolute-p root)
+                           (file-regular-p path)
+                           (file-readable-p path))
+                  path))))
+        (file-error nil)))))
+
+(defun its/eglot-typescript-contact (&rest _)
+  "Build the TypeScript server command when Eglot connects.
+Accept both older and Emacs 31 functional-contact argument lists.
+Keep workspace TypeScript preferred unless explicitly overridden."
+  (let ((override its/typescript-tsserver-path)
+        (fallback (unless its/typescript-tsserver-path
+                    (its/npm-global-tsserver))))
+    (when (and override
+               (not (and (file-name-absolute-p override)
+                         (file-regular-p override)
+                         (file-readable-p override))))
+      (user-error "its/typescript-tsserver-path must name a readable tsserver.js"))
+    (append '("typescript-language-server" "--stdio")
+            (when (or override fallback)
+              (list :initializationOptions
+                    (list :tsserver
+                          (if override
+                              (list :path override)
+                            (list :fallbackPath fallback))))))))
+
+(defun its/eglot-server-executable ()
+  "Return the executable configured for this buffer's language."
+  (cond
+   ((derived-mode-p 'ruby-mode 'ruby-ts-mode) "ruby-lsp")
+   ((derived-mode-p 'html-mode 'mhtml-mode 'html-ts-mode)
+    "vscode-html-language-server")
+   ((derived-mode-p 'css-mode 'css-ts-mode 'scss-mode)
+    "vscode-css-language-server")
+   ((derived-mode-p 'js-mode 'js-ts-mode 'typescript-mode
+                    'typescript-ts-mode 'tsx-ts-mode)
+    "typescript-language-server")))
+
+(defun its/eglot-ensure-if-server ()
+  "Start the right server for a local file, or explain what is missing.
+Remote/TRAMP buffers are intentionally left to manual Eglot setup."
+  (when (and buffer-file-name (not (file-remote-p default-directory)))
+    (when-let* ((server (its/eglot-server-executable)))
+      (if (executable-find server)
+          (eglot-ensure)
+        (message "Eglot: %s is not on Emacs's PATH; see C-c x v" server)))))
+
+;; Eagerly load the built-in package: the custom hook above needs
+;; eglot-ensure and our server registrations ready before a file opens.
 (use-package eglot
   :ensure nil
-  :hook ((ruby-mode ruby-ts-mode) . its/eglot-ensure-if-server)
-  :hook ((js-mode js-ts-mode
-          typescript-mode
-          html-mode mhtml-mode
-          css-mode scss-mode) . its/eglot-ensure-if-server)
+  :demand t
+  :custom
+  ;; These servers expect an object, not JSON null, for their settings.
+  ;; Project .dir-locals.el can still override this configuration.
+  (eglot-workspace-configuration
+   '(:css (:validate t :format (:enable t))
+     :scss (:validate t :format (:enable t))))
+  :hook ((ruby-mode ruby-ts-mode
+          js-mode js-ts-mode typescript-mode typescript-ts-mode tsx-ts-mode
+          html-mode mhtml-mode html-ts-mode
+          css-mode css-ts-mode scss-mode) . its/eglot-ensure-if-server)
   :bind (("M-." . xref-find-definitions)
          ("M-," . xref-go-back)
          ("C-c x r" . xref-find-references)
          ("C-c x d" . xref-find-definitions)
          ("C-c x a" . eglot-code-actions)
-         ("C-c x h" . eldoc)
+         ("C-c x h" . eldoc-doc-buffer)
+         ("C-c x R" . eglot-rename)
+         ("C-c x v" . its/development-doctor)
          ("C-c f b" . eglot-format-buffer)
-         ("C-c f r" . eglot-format))
+         ("C-c f r" . its/format-region)
+         ("C-c f s" . its/format-on-save-mode)
+         ("C-c r c" . flymake-show-buffer-diagnostics)
+         ("C-c r a" . eglot-format-buffer))
   :config
+  ;; Ruby LSP supplies Ruby navigation/completion AND RuboCop diagnostics.
+  ;; Run ruby-lsp directly: it composes its own bundle with the project's.
+  ;; RuboCop MUST be in the project's Gemfile (see the setup guide).
   (add-to-list 'eglot-server-programs
-               '((ruby-mode ruby-ts-mode) . ("ruby-lsp")))
+               '((ruby-mode ruby-ts-mode)
+                 . ("ruby-lsp" :initializationOptions
+                    (:formatter "rubocop" :linters ["rubocop"]))))
   (add-to-list 'eglot-server-programs
-               '((js-mode js-ts-mode typescript-mode)
-                 . ("typescript-language-server" "--stdio")))
+               '(((js-mode :language-id "javascript")
+                  (js-ts-mode :language-id "javascript")
+                  (typescript-mode :language-id "typescript")
+                  (typescript-ts-mode :language-id "typescript")
+                  (tsx-ts-mode :language-id "typescriptreact"))
+                 . its/eglot-typescript-contact))
   (add-to-list 'eglot-server-programs
-               '((html-mode mhtml-mode) . ("vscode-html-language-server" "--stdio")))
+               '(((html-mode :language-id "html")
+                  (mhtml-mode :language-id "html")
+                  (html-ts-mode :language-id "html"))
+                 . ("vscode-html-language-server" "--stdio"
+                    :initializationOptions
+                    (:provideFormatter t
+                     :embeddedLanguages (:css t :javascript t)))))
   (add-to-list 'eglot-server-programs
-               '((css-mode scss-mode) . ("vscode-css-language-server" "--stdio"))))
+               '(((css-mode :language-id "css")
+                  (css-ts-mode :language-id "css")
+                  (scss-mode :language-id "scss"))
+                 . ("vscode-css-language-server" "--stdio"
+                    :initializationOptions (:provideFormatter t)))))
 
-(with-eval-after-load 'eglot
-  (put 'eglot-flymake-backend 'flymake-always-safe t))
-
-(defun its/eglot-ensure-if-server ()
-  "Start Eglot only when a configured language server is installed."
-  (when (seq-some #'executable-find
-                  '("solargraph" "ruby-lsp"
-                    "typescript-language-server"
-                    "vscode-html-language-server"
-                    "vscode-css-language-server"))
-    (eglot-ensure)))
-
-;; flymake - show language-server diagnostics in the buffer
+;; Underlines/fringe marks use your theme's normal Flymake faces.
+;; No global flymake-mode: Eglot enables it where a backend is available.
 (use-package flymake
   :ensure nil
+  :demand t
+  :custom
+  (flymake-no-changes-timeout 0.5)
   :bind (("C-c x n" . flymake-goto-next-error)
          ("C-c x p" . flymake-goto-prev-error)
-         ("C-c x l" . flymake-show-buffer-diagnostics)))
+         ("C-c x l" . flymake-show-buffer-diagnostics)
+         ("C-c x L" . flymake-show-project-diagnostics)
+         ("C-c x e" . its/toggle-inline-diagnostics)))
 
-;; rubocop - on-demand Ruby style checks and autocorrection
-(use-package rubocop
-  :ensure t
-  :commands (rubocop-check-current-file
-             rubocop-autocorrect-current-file)
-  :bind (("C-c r c" . rubocop-check-current-file)
-         ("C-c r a" . rubocop-autocorrect-current-file)))
+(use-package eldoc
+  :ensure nil
+  :custom
+  (eldoc-idle-delay 0.4))
+
+(defun its/eglot-eldoc-setup ()
+  "Let diagnostics and documentation share the native echo area."
+  (when (eglot-managed-p)
+    (setq-local eldoc-documentation-strategy
+                #'eldoc-documentation-compose-eagerly)
+    (eldoc-mode 1)))
+(add-hook 'eglot-managed-mode-hook #'its/eglot-eldoc-setup)
+
+(defun its/toggle-inline-diagnostics ()
+  "Toggle extra diagnostic text in this buffer, keeping underlines.
+Support both the bundled Flymake option and newer GNU ELPA Flymake."
+  (interactive)
+  (require 'flymake)
+  (let* ((option (if (boundp 'flymake-inline-diagnostics)
+                     'flymake-inline-diagnostics
+                   'flymake-show-diagnostics-at-end-of-line))
+         (enabled (not (symbol-value option))))
+    (set (make-local-variable option)
+         (and enabled (if (eq option 'flymake-inline-diagnostics) 'short t)))
+    (when (bound-and-true-p flymake-mode)
+      (flymake-start))
+    (message "Inline diagnostic text %s; underlines unchanged"
+             (if enabled "enabled" "disabled"))))
+
+(defun its/format-region (beg end)
+  "Format the selected region, without silently formatting the whole file."
+  (interactive "r")
+  (unless (use-region-p)
+    (user-error "Select a region first, or use C-c f b for the whole buffer"))
+  (when (derived-mode-p 'ruby-mode 'ruby-ts-mode)
+    (user-error "RuboCop needs the whole Ruby buffer; use C-c f b"))
+  (eglot-format beg end))
+
+(defun its/format-before-save ()
+  "Format through Eglot; leave the buffer unsaved if formatting fails."
+  (unless (eglot-managed-p)
+    (user-error "No Eglot connection; connect or disable C-c f s to save"))
+  (eglot-format-buffer))
+
+(define-minor-mode its/format-on-save-mode
+  "Opt-in, buffer-local formatting before save.
+Disabled by default to avoid surprise rewrites.  If the formatter
+fails, saving stops; fix the error or toggle this mode off to save."
+  :lighter " Fmt"
+  :group 'its-development
+  (if its/format-on-save-mode
+      (add-hook 'before-save-hook #'its/format-before-save nil t)
+    (remove-hook 'before-save-hook #'its/format-before-save t)))
+
+(defun its/development-doctor ()
+  "Show the development tools visible to this Emacs, without installing any."
+  (interactive)
+  (let ((directory default-directory)
+        (mode major-mode)
+        (server (its/eglot-server-executable))
+        (connected (eglot-managed-p)))
+    (with-help-window "*Development tools*"
+      (princ (format "Emacs: %s\nDirectory: %s\nMode: %s\n"
+                     emacs-version directory mode))
+      (princ (format "Expected server: %s\nEglot managing this buffer: %s\n\n"
+                     (or server "none configured here") (if connected "yes" "no")))
+      (if (file-remote-p directory)
+          (princ "Remote buffer: automatic local-tool detection is disabled.\n")
+        (dolist (program '("node" "npm" "typescript-language-server" "tsserver"
+                           "vscode-html-language-server" "vscode-css-language-server"
+                           "ruby" "gem" "bundle" "ruby-lsp" "rubocop"))
+          (princ (format "%-30s %s\n" program
+                         (or (executable-find program) "NOT FOUND"))))
+        (princ (format "\nExplicit tsserver override: %s\nGlobal tsserver fallback: %s\n"
+                       (or its/typescript-tsserver-path "none")
+                       (or (its/npm-global-tsserver) "not found"))))
+      (princ "\nThis reports executable discovery, not server health or gem versions.\n")
+      (princ "For connection errors: M-x eglot-events-buffer and *Messages*.\n")
+      (princ "Ruby: RuboCop must also be in your project's Gemfile.\n")
+      (princ "After installing tools, restart Emacs and run M-x eglot.\n"))))
 
 ;; inf-ruby - ruby REPL
 (use-package inf-ruby
@@ -318,12 +501,14 @@
 
 (dolist (hook '(ruby-mode-hook ruby-ts-mode-hook
                 js-mode-hook js-ts-mode-hook typescript-mode-hook
-                html-mode-hook mhtml-mode-hook
-                css-mode-hook scss-mode-hook))
+                typescript-ts-mode-hook tsx-ts-mode-hook
+                html-mode-hook mhtml-mode-hook html-ts-mode-hook
+                css-mode-hook css-ts-mode-hook scss-mode-hook))
   (add-hook hook #'its/two-space-indentation))
 (setq-default css-indent-offset 2
               js-indent-level 2
               typescript-indent-level 2
+              typescript-ts-mode-indent-offset 2
               js2-basic-offset 2
               sgml-basic-offset 2
               ruby-indent-level 2)
