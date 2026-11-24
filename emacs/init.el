@@ -17,8 +17,7 @@
 
 ;; everforest - superior theme
 (unless (package-installed-p 'everforest-emacs)
-  (package-vc-install "https://github.com/theorytoe/everforest-emacs"))   
-
+  (package-vc-install "https://github.com/theorytoe/everforest-emacs"))
 
 ;; autodark - change theme based on CURRENT system preference
 (setq custom-safe-themes t) ;; make all themes safe to load
@@ -33,7 +32,7 @@
 (when (and (eq system-type 'gnu/linux)
            (display-graphic-p)
            (not (getenv "XDG_CURRENT_DESKTOP"))
-	   (not (getenv "WSL_DISTRO_NAME")))
+   (not (getenv "WSL_DISTRO_NAME")))
   (load-file (expand-file-name "exwm.el" "~/.config/emacs/")))
 
 ;; no-litter - helps keeping ~/.config/emacs clean
@@ -109,13 +108,25 @@
 (global-set-key (kbd "C-c p p") #'its/project-switch-repository)
 
 (defun its/project-switch-repository ()
-  "Discover Git projects under ~/repos, then choose one."
+  "Choose a directory directly under ~/repos, then show project actions."
   (interactive)
-  (let ((repos (expand-file-name "~/repos")))
+  (require 'project)
+  (require 'seq)
+  (let ((repos (expand-file-name "~/repos/")))
     (unless (file-directory-p repos)
       (user-error "Repository directory does not exist: %s" repos))
-    (project-remember-projects-under repos t)
-    (call-interactively #'project-switch-project)))
+    (let* ((directories
+            (seq-filter
+             #'file-directory-p
+             (directory-files repos t
+                              directory-files-no-dot-files-regexp)))
+           (names (mapcar #'file-name-nondirectory directories)))
+      (unless names
+        (user-error "No project directories found in %s" repos))
+      (let ((choice (completing-read "Repository: " names nil t)))
+        (project-switch-project
+         (file-name-as-directory
+          (expand-file-name choice repos)))))))
 
 (defun its/project-switch-buffer ()
   "Switch only between live file buffers belonging to the current project."
